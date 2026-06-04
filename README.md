@@ -45,6 +45,9 @@ git submodule update --init --recursive
 We use [uv](https://docs.astral.sh/uv/) to manage Python dependencies. See the [uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/) to set it up. Once uv is installed, run the following to set up the environment:
 
 ```bash
+# If you have a RTX50 series GPU, install with CUDA 12.8 support:
+GIT_LFS_SKIP_SMUDGE=1 uv add torch==2.7.0 torchvision==0.22.0 torchcodec==0.5 --index-url https://download.pytorch.org/whl/cu128
+
 GIT_LFS_SKIP_SMUDGE=1 uv sync
 GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
 ```
