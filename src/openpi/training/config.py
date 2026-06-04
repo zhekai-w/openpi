@@ -20,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.ur5_policy as ur5_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -28,6 +29,8 @@ import openpi.training.misc.roboarena_config as roboarena_config
 import openpi.training.optimizer as _optimizer
 import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
+import openpi.shared.nnx_utils as nnx_utils
+
 
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
@@ -352,6 +355,64 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
             repack_transforms=repack_transform,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotUR5DataConfig(DataConfigFactory):
+    """Data config for UR5 datasets in LeRobot v2.1 format.
+
+    Dataset must have observation.state (7-dim: 6 joints + gripper), action (7-dim),
+    observation.images.cam1, observation.images.cam2, at 30 Hz.
+
+    Set LEROBOT_HOME to the parent directory of your dataset folder, then pass
+    --data.repo_id=<folder_name> at training time.
+
+    Norm stats are computed fresh from your data (not reused from pre-training).
+    Run: uv run scripts/compute_norm_stats.py --config-name pi0_ur5
+    """
+
+    # If provided, injected as prompt when dataset has no task prompt.
+    default_prompt: str | None = None
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "base_rgb": "observation.images.cam1",
+                        "wrist_rgb": "observation.images.cam2",
+                        "state": "observation.state",
+                        "actions": "action",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+
+        data_transforms = _transforms.Group(
+            inputs=[ur5_policy.UR5Inputs(model_type=model_config.model_type)],
+            outputs=[ur5_policy.UR5Outputs()],
+        )
+
+        # Joints are absolute angles — convert to delta for training, back to absolute at inference.
+        # Gripper (dim 6) stays absolute.
+        delta_action_mask = _transforms.make_bool_mask(6, -1)
+        data_transforms = data_transforms.push(
+            inputs=[_transforms.DeltaActions(delta_action_mask)],
+            outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+        )
+
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            action_sequence_keys=("action",),
+            prompt_from_task=True,
         )
 
 
@@ -759,6 +820,54 @@ _CONFIGS = [
         ema_decay=0.999,
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         pytorch_weight_path="/path/to/your/pytorch_weight_path",
+        num_train_steps=30_000,
+    ),
+    #
+    # Fine-tuning UR5 configs.
+    #
+    # Set LEROBOT_HOME=/path/to/your/datasets/parent before running.
+    # Pass --data.repo_id=<dataset_folder_name> at training time.
+    # Before first run: uv run scripts/compute_norm_stats.py --config-name pi0_ur5
+    TrainConfig(
+        name="pi0_ur5",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotUR5DataConfig(repo_id="combined_datasets"),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="pi0_ur5_lora",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
+        data=LeRobotUR5DataConfig(repo_id="combined_datasets"),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        freeze_filter=nnx.Any(
+            pi0_config.Pi0Config(
+                paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+            ).get_freeze_filter(),
+            nnx_utils.PathRegex(".*img.*"),  # also freeze SigLIP vision tower
+        ),
+        ema_decay=None,
+        num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="pi0_fast_ur5",
+        model=pi0_fast.Pi0FASTConfig(action_dim=7, action_horizon=32, max_token_len=180),
+        data=LeRobotUR5DataConfig(repo_id="combined_datasets"),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_fast_base/params"),
+        num_train_steps=30_000,
+    ),
+    # LoRA variant of pi0_fast_ur5 for single-GPU (e.g. 24GB) training.
+    TrainConfig(
+        name="pi0_fast_ur5_lora",
+        model=pi0_fast.Pi0FASTConfig(
+            paligemma_variant="gemma_2b_lora", action_dim=7, action_horizon=32, max_token_len=180
+        ),
+        data=LeRobotUR5DataConfig(repo_id="combined_datasets"),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_fast_base/params"),
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            paligemma_variant="gemma_2b_lora", action_dim=7, action_horizon=32, max_token_len=180
+        ).get_freeze_filter(),
+        ema_decay=None,
         num_train_steps=30_000,
     ),
     #
