@@ -17,12 +17,6 @@ The server returns:
     action.ur5_arm : (action_horizon, 6) float64
     action.gripper : (action_horizon,)   float64
 
-Available UR5 configs (--config):
-    pi0_ur5           action_horizon=8
-    pi0_ur5_lora      action_horizon=8   (single-GPU, 24 GB)
-    pi0_fast_ur5      action_horizon=32
-    pi0_fast_ur5_lora action_horizon=32  (single-GPU)
-
 Server usage:
     python pkgs/openpi/scripts/openpi_inference_service.py \
         --server --config pi0_ur5_lora \

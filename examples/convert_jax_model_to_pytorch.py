@@ -435,7 +435,7 @@ def convert_pi0_checkpoint(
     print(f"Model config: {model_config}")
 
     # Break down orbax ckpts by restoring via JAX to respect dtype
-    initial_params = slice_initial_orbax_checkpoint(checkpoint_dir=checkpoint_dir, restore_precision="float32")
+    initial_params = slice_initial_orbax_checkpoint(checkpoint_dir=checkpoint_dir, restore_precision="bfloat16")
 
     # Process projection params
     if model_config.pi05:
