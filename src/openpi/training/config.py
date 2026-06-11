@@ -845,10 +845,9 @@ _CONFIGS = [
             pi0_config.Pi0Config(
                 paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora",
             ).get_freeze_filter(),
-            # nnx.All(
-            #     nnx_utils.PathRegex(".*img.*"),  # also freeze SigLIP vision tower
-            #     nnx.Not(nnx_utils.PathRegex(".*img/head.*")),
-            # ),
+            nnx.All(
+                nnx_utils.PathRegex(".*img.*"),  # also freeze SigLIP vision tower
+            ),
         ),
         ema_decay=None,
         num_train_steps=30_000,
