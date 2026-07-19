@@ -831,7 +831,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi0_ur5",
         model=pi0_config.Pi0Config(),
-        data=LeRobotUR5DataConfig(repo_id="combined_datasets"),
+        data=LeRobotUR5DataConfig(repo_id="3_combined_encoded"),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=30_000,
     ),
@@ -839,6 +839,7 @@ _CONFIGS = [
         name="pi0_ur5_lora",
         model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora",
             max_token_len=90),
+        # data=LeRobotUR5DataConfig(repo_id="162_combined"),
         data=LeRobotUR5DataConfig(repo_id="combined_datasets"),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         freeze_filter=nnx.Any(
@@ -851,6 +852,7 @@ _CONFIGS = [
         ),
         ema_decay=None,
         num_train_steps=30_000,
+        # lr_schedule=_optimizer.CosineDecaySchedule(decay_steps=60_000),
     ),
     TrainConfig(
         name="pi0_fast_ur5",
