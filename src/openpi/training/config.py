@@ -840,7 +840,7 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora",
             max_token_len=90),
         # data=LeRobotUR5DataConfig(repo_id="162_combined"),
-        data=LeRobotUR5DataConfig(repo_id="combined_datasets"),
+        data=LeRobotUR5DataConfig(repo_id="3_combined_encoded"),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         freeze_filter=nnx.Any(
             pi0_config.Pi0Config(
